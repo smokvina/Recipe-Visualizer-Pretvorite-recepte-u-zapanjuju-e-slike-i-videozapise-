@@ -1,0 +1,5 @@
+{
+  "name": "Recipe Visualizer",
+  "description": "An AI-powered application that turns your recipe descriptions into beautiful, stylized images. Just chat with the assistant, provide your recipe, and watch it come to life visually.",
+  "requestFramePermissions": []
+}
