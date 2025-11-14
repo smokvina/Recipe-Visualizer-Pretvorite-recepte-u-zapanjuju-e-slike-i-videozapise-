@@ -14,6 +14,7 @@ export const ChatWindow: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isKeyNeeded, setIsKeyNeeded] = useState<boolean>(false);
+  const [hasGeneratedContent, setHasGeneratedContent] = useState<boolean>(false);
   const [pendingVideoAction, setPendingVideoAction] = useState<{ recipeName: string, videoPrompt: string, imageBase64: string, aspectRatio: AspectRatio } | null>(null);
 
   const chatSessionRef = useRef<Chat | null>(null);
@@ -23,6 +24,11 @@ export const ChatWindow: React.FC = () => {
     setMessages((prev) => [...prev, { id: Date.now().toString() + Math.random(), role, content }]);
   }, []);
   
+  const handleGenerationSuccess = useCallback(() => {
+    setHasGeneratedContent(true);
+    addMessage('model', "Dosegli ste ograničenje od 1 generiranja po sesiji. Zbog ograničenja troškova, dopuštena je jedna operacija po sesiji. Osvježite stranicu za novi pokušaj. Hvala na razumijevanju!");
+  }, [addMessage]);
+
   const initChat = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -62,7 +68,8 @@ export const ChatWindow: React.FC = () => {
     try {
         const videoUrl = await generateVideo(videoPrompt, imageBase64, aspectRatio);
         addMessage('model', <VideoResult videoUrl={videoUrl} recipeName={recipeName} />);
-        addMessage('model', 'Uspješno! Nadam se da ti se sviđa!');
+        addMessage('model', 'Uspješno!');
+        handleGenerationSuccess();
     } catch (error: any) {
         console.error("Error retrying video generation:", error);
         addMessage('model', 'Nažalost, i dalje postoji problem s generiranjem videa. Provjerite svoj API ključ i pokušajte ponovno.');
@@ -73,7 +80,7 @@ export const ChatWindow: React.FC = () => {
     } finally {
         setIsLoading(false);
     }
-  }, [pendingVideoAction, addMessage]);
+  }, [pendingVideoAction, addMessage, handleGenerationSuccess]);
 
   const handleSelectKey = useCallback(async () => {
       await window.aistudio.openSelectKey();
@@ -83,6 +90,11 @@ export const ChatWindow: React.FC = () => {
 
   const handleSendMessage = async (text: string) => {
     if (isLoading || !text.trim() || !chatSessionRef.current) return;
+
+    if (hasGeneratedContent) {
+      addMessage('model', "Dostigli ste ograničenje od 1 generisanja po sesiji. Molimo osvježite stranicu za novu sesiju.");
+      return;
+    }
 
     addMessage('user', text);
     setIsLoading(true);
@@ -108,7 +120,8 @@ export const ChatWindow: React.FC = () => {
             try {
                 const videoUrl = await generateVideo(videoPrompt, imageBase64, aspectRatio);
                 addMessage('model', <VideoResult videoUrl={videoUrl} recipeName={recipeName} />);
-                addMessage('model', 'Evo i videa! Nadam se da ti se sviđa! Želiš li napraviti još nešto?');
+                addMessage('model', 'Evo i videa!');
+                handleGenerationSuccess();
             } catch (error: any) {
                 if (error.message === 'API_KEY_REQUIRED') {
                     addMessage('model', 'Za generiranje videa potrebno je odabrati API ključ.');
@@ -128,7 +141,7 @@ export const ChatWindow: React.FC = () => {
 
           if (parsed.action === 'generate_image' && parsed.recipeName && parsed.ingredients) {
             await handleImageGeneration(parsed.recipeName, parsed.ingredients);
-            addMessage('model', 'Nadam se da ti se sviđa! Želiš li napraviti još nešto?');
+            handleGenerationSuccess();
           } else if ((parsed.action === 'generate_video' || parsed.action === 'generate_both') && parsed.recipeName && parsed.ingredients && parsed.videoPrompt && parsed.aspectRatio) {
             const aspectRatio = parsed.aspectRatio === '16:9' || parsed.aspectRatio === '9:16' ? parsed.aspectRatio : '16:9';
             const { imageBase64 } = await handleImageGeneration(parsed.recipeName, parsed.ingredients);
@@ -175,7 +188,7 @@ export const ChatWindow: React.FC = () => {
             </div>
         )}
       </div>
-      <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading || isKeyNeeded} />
+      <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading || isKeyNeeded || hasGeneratedContent} isLimitReached={hasGeneratedContent} />
     </div>
   );
 };
